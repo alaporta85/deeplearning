@@ -1,298 +1,569 @@
 import numpy as np
 from sklearn.datasets import load_digits
 from sklearn.utils import shuffle
+from matplotlib.image import imread
 import matplotlib.pyplot as plt
 
 
 def create_sets(layers):
 
-    digits = load_digits()
+	"""
+	   Separate training and dev sets together with their labels, normalize
+	   them and initialize parameters according to their shape.
 
-    images = digits.images
-    labels = digits.target
+	   Inputs:
+	   - layers = list containing the size of each hidden layer (input and
+				  output layers excluded). Ex: [16, 32].
 
-    images, labels = shuffle(images, labels, random_state=0)
-    max_labels = np.amax(labels)
+	   Outputs:
+	   - training_set = numpy array where each column represents an image. If
+						there are m images with shape (nx, ny) than the shape
+						of training_set is (nx * ny, m).
 
-    m = 1000
+	   - training_lab = numpy array where each column represents the label of
+						the corresponding image. Shape is (10, m). Each column
+						is an one-hot vector. In this specific problem there
+						are 10 rows because it is for 0-9 hand-written digits
+						recognition.
 
-    training_set = images[:m]
-    training_lab = one_hot(labels[:m], max_labels)
-    devel_set = images[m:]
-    devel_lab = one_hot(labels[m:], max_labels)
+	   - devel_set    = same as training_set. m can be different here.
 
-    training_set = training_set.reshape(training_set.shape[0], -1).T / 255
-    training_lab = training_lab.reshape(training_lab.shape[0], -1).T
-    devel_set = devel_set.reshape(devel_set.shape[0], -1).T / 255
-    devel_lab = devel_lab.reshape(devel_lab.shape[0], -1).T
+	   - devel_lab    = same as training_lab. m can be different here.
 
-    # mu = np.average(training_set)
-    # sigma = np.sum(np.square(training_set), axis=1, keepdims=True) / m
-    # training_set -= mu
-    # training_set /= sigma
+	   - params       = dict of numpy arrays representing weights (W) and
+						biases (b) for each layer.
+	"""
 
-    layers = [training_set.shape[0]] + layers + [training_lab.shape[0]]
+	# Separate images and labels and shuffle them
+	digits = load_digits()
+	images = digits.images
+	labels = digits.target
+	images, labels = shuffle(images, labels, random_state=0)
 
-    param = initialize_params(layers)
+	# im = imread('/Users/andrea/Desktop/prova5.png')
+	# img = np.sum(im, axis=-1)
+	# img = img.reshape(64, 1) / 255
 
-    return training_set, training_lab, devel_set, devel_lab, param
+	# Number of samples in training_set. Rest of the samples will be assigned
+	# to devel_set
+	m = 1000
+	training_set = images[:m]  # Shape: (m, nx, ny)
+	training_lab = from_value_to_onehot(labels[:m])  # Shape: (m, 10)
+	devel_set = images[m:]  # Shape: (all - m, nx, ny)
+	devel_lab = from_value_to_onehot(labels[m:])  # Shape: (all - m, 10)
 
+	# Reshape and normalize sets
+	training_set = training_set.reshape(
+			training_set.shape[0], -1).T / 255  # Shape: (nx * ny, m)
+	training_lab = training_lab.reshape(
+			training_lab.shape[0], -1).T  # Shape: (10, m)
+	devel_set = devel_set.reshape(
+			devel_set.shape[0], -1).T / 255  # Shape: (nx * ny, all - m)
+	devel_lab = devel_lab.reshape(
+			devel_lab.shape[0], -1).T  # Shape: (10, all - m)
 
-def create_practice_sets():
+	# Add input and output layers' sizes to the input list "layers"
+	layers = [training_set.shape[0]] + layers + [training_lab.shape[0]]
 
-    a0 = np.array([[2, 5, 4, 3, 2, 1]]).T
+	# Initialize dict with parameters
+	params = initialize_params_xavier(layers)
 
-    y = np.array([0, 1, 0]).reshape(3, 1)
-
-    params = {'W1': np.array([[-.2, .3, .1],
-                              [.1, -.1, .2],
-                              [-.3, .1, -.4],
-                              [.2, -.5, .4],
-                              [.1, .4, -.5],
-                              [-.1, .1, .5]]).reshape(3, 6),
-              'W2': np.array([[-.2, .4, -.5],
-                              [.3, -.2, -.5],
-                              [.4, -.1, .5]]),
-              'b1': np.zeros((3, 1)),
-              'b2': np.zeros((3, 1))}
-
-    return a0, y, params
-
-
-def one_hot(some_array, size):
-    oh = np.zeros((len(some_array), size + 1))
-    oh[np.arange(len(some_array)), some_array] = 1
-    return oh
-
-
-def one_hot2(some_array):
-    max_index = np.argmax(some_array)
-    oh = np.zeros(some_array.shape)
-    oh[max_index, :] = 1
-
-    return oh
+	return training_set, training_lab, devel_set, devel_lab, params
 
 
-def initialize_params(layers):
+def from_value_to_onehot(some_array):
 
-    np.random.seed(25)
-    factor1 = 0.01
+	"""
+	   Return the one-hot version of the input array.
 
-    param = {}
+	   Inputs:
+	   - some_array = numpy array of shape (m, 1).
 
-    for i in range(1, len(layers)):
-        factor2 = np.sqrt(2/layers[i - 1])
-        param['W' + str(i)] = np.random.randn(layers[i],
-                                              layers[i - 1]) * factor2
-        param['b' + str(i)] = np.zeros((layers[i], 1))
+	   Outputs:
+	   - oh         = one-hot numpy array of shape (m, 10).
 
-    return param
+	   Ex:
+
+			some_array = [1]           oh = [0, 1, 0, 0, 0, 0, 0, 0, 0, 0]
+						 [2]                [0, 0, 1, 0, 0, 0, 0, 0, 0, 0]
+						 [3]                [0, 0, 0, 1, 0, 0, 0, 0, 0, 0]
+
+	"""
+	oh = np.zeros((len(some_array), 10))
+	oh[np.arange(len(some_array)), some_array] = 1
+
+	return oh
+
+
+def from_array_to_onehot(some_array):
+
+	"""
+	   Return the one-hot version of the input array. The component which will
+	   be equal to 1 is the one with the max value inside some_array. Used to
+	   calculate the accuracy.
+
+	   Inputs:
+	   - some_array = numpy array of shape (10, m).
+
+	   Outputs:
+	   - oh         = one-hot numpy array of shape (10, m).
+
+	   Ex:
+
+	   some_array = [0.13, 0.98, 0.12, 0.05, 0.2, 0.17, 0.11, 0.22, 0.21, 0.15]
+					[0.13, 0.12, 0.98, 0.05, 0.2, 0.17, 0.11, 0.22, 0.21, 0.15]
+					[0.13, 0.05, 0.12, 0.98, 0.2, 0.17, 0.11, 0.22, 0.21, 0.15]
+
+	   oh         = [0, 1, 0, 0, 0, 0, 0, 0, 0, 0]
+					[0, 0, 1, 0, 0, 0, 0, 0, 0, 0]
+					[0, 0, 0, 1, 0, 0, 0, 0, 0, 0]
+	"""
+	max_index = np.argmax(some_array)
+	oh = np.zeros(some_array.shape)
+	oh[max_index, :] = 1
+
+	return oh
+
+
+def initialize_params_xavier(layers):
+
+	"""
+	   Inputs:
+	   - layers = list containing the size of each hidden layer (input and
+				  output layers excluded). Ex: [16, 32].
+
+	   Outputs:
+	   - params = dict with W and b Xavier-initialized for each layer.
+	"""
+
+	params = {}
+	np.random.seed(1)
+
+	for i in range(1, len(layers)):
+		xavier = np.sqrt(1 / layers[i - 1])
+		params['W' + str(i)] = np.random.randn(layers[i - 1],
+		                                       layers[i]) * xavier
+		params['b' + str(i)] = np.zeros((layers[i], 1))
+
+	return params
 
 
 def softmax(z):
-    numer = np.exp(z)
-    # denom = np.sum(numer)
-    denom = np.sum(numer, axis=0)
 
-    s = np.divide(numer, denom)
-    return s, z
+	"""
+	   Inputs:
+	   - z  = numpy array
+
+	   Outputs:
+	   - s  = numpy array
+	   - z
+	"""
+
+	s = np.divide(np.exp(z), np.sum(np.exp(z), axis=0))
+
+	return s, z
 
 
 def relu(z):
-    r = np.maximum(0, z)
-    return r, z
+
+	"""
+	   Inputs:
+	   - z  = numpy array
+
+	   Outputs:
+	   - r  = numpy array
+	   - z
+	"""
+
+	r = np.maximum(0, z)
+
+	return r, z
 
 
 def softmax_back(a, labels):
 
-    return np.subtract(a, labels)
+	"""
+	   Only in the case it is applied to the NN output layer, formula is
+	   a - labels.
+
+	   Inputs:
+	   - a      = numpy array. Output of the NN output layer.
+
+	   - labels = numpy array.
+
+	   Outputs:
+	   - dz = numpy array.
+	"""
+
+	dz = np.subtract(a, labels)
+
+	return dz
 
 
 def relu_back(da, act_cache):
 
-    dz = da * (act_cache >= 0)
+	"""
+	   Inputs:
+	   - da        = numpy array.
 
-    return dz
+	   - act_cache = numpy array. It is current layer's Z.
+
+	   Outputs:
+	   - dz = numpy array.
+	"""
+
+	dz = da * (act_cache >= 0)
+
+	return dz
 
 
-def forward_lin(a, w, b):
-    z = np.dot(w, a) + b
-    cache = (a, w, b)
-    return z, cache
+def forward_lin(a_previous, w, b):
+
+	"""
+	   Compute the forward linear step relative to the current layer (l).
+
+	   Inputs:
+	   - a_previous = numpy array. Output of NN layer [l - 1].
+
+	   - w          = numpy array. Weights of NN layer [l].
+
+	   - b          = numpy array. Biases of NN layer [l].
+
+	   Outputs:
+	   - z         = numpy array
+
+	   - cache_lin = tuple
+	"""
+
+	z = np.dot(w.T, a_previous) + b
+	cache_lin = (a_previous, w, b)
+
+	return z, cache_lin
 
 
 def forward_act(a_previous, w, b, activation):
-    if activation == 'relu':
-        z, cache_lin = forward_lin(a_previous, w, b)
-        a, cache_act = relu(z)
-    elif activation == 'softmax':
-        z, cache_lin = forward_lin(a_previous, w, b)
-        a, cache_act = softmax(z)
 
-    _cache = (cache_lin, cache_act)
+	"""
+	   Compute the forward activation step relative to the current layer (l).
 
-    return a, _cache
+	   Inputs:
+	   - a_previous = numpy array. Output of NN layer [l - 1].
+
+	   - w          = numpy array. Weights of NN layer [l].
+
+	   - b          = numpy array. Biases of NN layer [l].
+
+	   - activation = string. 'relu' or 'softmax'
+
+	   Outputs:
+	   - a         = numpy array. Output of NN layer [l].
+
+	   - _cache = tuple
+	"""
+
+	if activation == 'relu':
+		z, cache_lin = forward_lin(a_previous, w, b)
+		a, cache_act = relu(z)
+	else:
+		z, cache_lin = forward_lin(a_previous, w, b)
+		a, cache_act = softmax(z)
+
+	_cache = (cache_lin, cache_act)
+
+	return a, _cache
 
 
 def forward_prop(a_previous, params):
 
-    h = len(params) // 2
-    caches = []
+	"""
+	   Compute the forward propagation through the entire NN.
 
-    for i in range(1, h):
-        a_previous, _cache = forward_act(a_previous, params['W' + str(i)],
-                                         params['b' + str(i)], 'relu')
-        caches.append(_cache)
+	   Inputs:
+	   - a_previous = numpy array. Output of NN layer [l - 1].
 
-    a_previous, _cache = forward_act(a_previous, params['W' + str(h)],
-                                     params['b' + str(h)], 'softmax')
-    caches.append(_cache)
+	   - params     = dict with W and b.
 
-    return a_previous, caches
+	   Outputs:
+	   - a_final = numpy array. Output of NN's output layer (the prediction).
 
+	   - caches  = list of the caches stored as tuples. One tuple per NN layer.
+	"""
 
-def compute_cost(output, all_labels):
+	# Number of hidden layers
+	h = len(params) // 2
+	caches = []
 
-    # cost = -np.sum(all_labels*np.log(output) +
-    #                (1 - all_labels)*np.log(1 - output))/len(all_labels)
+	# Compute the forward prop for all the layers except the last one. At this
+	# point we use just relu
+	for i in range(1, h):
+		a_previous, _cache = forward_act(a_previous, params['W' + str(i)],
+		                                 params['b' + str(i)], 'relu')
+		caches.append(_cache)
 
-    cost = -np.sum(all_labels*np.log(output)) / all_labels.shape[1]
+	# Compute the forward prop for last layer by using softmax
+	a_final, _cache = forward_act(a_previous, params['W' + str(h)],
+	                              params['b' + str(h)], 'softmax')
+	caches.append(_cache)
 
-    return cost
-
-
-def backward_lin(dz, _cache):
-    a_previous, w, b = _cache
-    m = a_previous.shape[1]
-
-    dw = (np.dot(dz, a_previous.T)) / m
-    db = np.sum(dz, axis=1, keepdims=True) / m
-    try:
-        da_previous = np.dot(w.T, dz)
-        return da_previous, dw, db
-    except ValueError:
-        return 0, dw, db
+	return a_final, caches
 
 
-def backward_act(da_previous, _cache, labels, activation):
+def compute_cost(a_final, labels):
 
-    linear_cache, activation_cache = _cache
-    a, w, b = linear_cache
-    z = activation_cache
+	"""
+	   Compute the cost function.
 
-    if activation == 'relu':
-        dz = relu_back(da_previous, z)
-        da_previous, dw, db = backward_lin(dz, linear_cache)
-    else:
-        dz = softmax_back(a, labels)
-        da_previous, dw, db = backward_lin(dz, linear_cache)
+	   Inputs:
+	   - a_final = numpy array. Prediction after forward prop through NN.
 
-    return da_previous, dw, db
+	   - labels  = numpy array.
 
+	   Outputs:
+	   - cost = float.
+	"""
 
-def back_prop(a_previous, input_lab, _cache):
+	cost = -np.sum(labels * np.log(a_final)) / labels.shape[1]
 
-    grads = {}
-    L = len(_cache)
-
-    last_lin_cache, last_act_cache = _cache[-1]
-    _cache = _cache[:-1]
-
-    dz_prev = softmax_back(a_previous, input_lab)
-    da_previous, dw, db = backward_lin(dz_prev, last_lin_cache)
-    grads['dW{}'.format(L)] = dw
-    grads['db{}'.format(L)] = db
-    L = len(_cache)
-
-    for i in reversed(range(L)):
-        current_lin_cache, current_act_cache = _cache[i]
-        dz_prev = relu_back(da_previous, current_act_cache)
-        da_previous, dw, db = backward_lin(dz_prev, current_lin_cache)
-        grads['dW{}'.format(i + 1)] = dw
-        grads['db{}'.format(i + 1)] = db
-
-    return grads
+	return cost
 
 
-def update_parameters(params, grads, alpha):
-    L = len(params) // 2
+def backward_lin(dz, cache_lin):
 
-    for i in range(1, L + 1):
-        params['W{}'.format(i)] -= alpha * grads['dW{}'.format(i)]
-        params['b{}'.format(i)] -= alpha * grads['db{}'.format(i)]
+	"""
+	   Compute the backward linear step relative to the current layer (l).
 
+	   Inputs:
+	   - dz        = numpy array.
 
-def forw_back_upd(a_last, input_lab, params, alpha):
-    a_prev, cache = forward_prop(a_last, params)
-    cost = compute_cost(a_prev, input_lab)
-    grads = back_prop(a_prev, input_lab, cache)
-    update_parameters(params, grads, alpha)
+	   - cache_lin = tuple
 
-    return cost
+	   Outputs:
+	   - z         = numpy array
 
+	   - cache_lin = tuple
+	"""
+	a_previous, w, b = cache_lin
+	m = a_previous.shape[1]
 
-def calc_accuracy(a_final, inp_lab):
+	dw = (np.dot(dz, a_previous.T)) / m
+	db = np.sum(dz, axis=1, keepdims=True) / m
+	da_previous = np.dot(w, dz)
 
-    nx = a_final.shape[0]
-    m = a_final.shape[1]
-    count = 0
-
-    for x in range(m):
-        prevision = one_hot2(a_final[:, x].reshape(nx, 1))
-        label = inp_lab[:, x].reshape(nx, 1)
-
-        if np.array_equal(prevision, label):
-            count += 1
-
-    return round(count / m * 100, 1)
+	return da_previous, dw, db
 
 
-def model_plain(input_set, input_lab, params, alpha, iterations):
+def backward_act(da_previous, current_cache, labels, activation):
 
-    all_costs = []
-    m = input_set.shape[1]
+	"""
+	   Compute the backward activation step relative to the current layer (l).
 
-    for i in range(iterations):
-        a_prev = input_set
-        cost = forw_back_upd(a_prev, input_lab, params, alpha)
-        all_costs.append(cost)
+	   Inputs:
+	   - da_previous   = numpy array. Relative to layer [l].
 
-        if i % 3000 == 0:
-            print("Cost at iteration {}: {}".format(i, round(cost, 4)))
+	   - current_cache = tuple.
 
-    a_prev, cache = forward_prop(a_prev, params)
-    accur = calc_accuracy(a_prev, input_lab)
+	   - labels        = numpy array.
 
-    return accur
+	   - activation = string. 'relu' or 'softmax'
+
+	   Outputs:
+	   - da_previous   = numpy array. Relative to layer [l - 1].
+
+	   - dw            = numpy array. Weights gradients of NN layer [l].
+
+	   - db            = numpy array. Biases gradients of NN layer [l].
+	"""
+
+	cache_lin, cache_act = current_cache
+	a, w, b = cache_lin
+	z = cache_act
+
+	if activation == 'relu':
+		dz = relu_back(da_previous, z)
+		da_previous, dw, db = backward_lin(dz, cache_lin)
+	else:
+		dz = softmax_back(a, labels)
+		da_previous, dw, db = backward_lin(dz, cache_lin)
+
+	return da_previous, dw, db
 
 
-def model_mini_batch(input_set, input_lab, params, alpha, epochs, batch_size):
-    all_cost = []
-    mini_batches = input_set.shape[1]//batch_size + 1 if\
-        input_set.shape[1] % batch_size else input_set.shape[1]//batch_size
+def back_prop(a_final, labels, caches):
 
-    for i in range(epochs):
-        cost = 0
-        for x in range(mini_batches):
-            inp = input_set[:, x * batch_size: (x + 1) * batch_size]
-            label = input_lab[:, x * batch_size: (x + 1) * batch_size]
-            cost += forw_back_upd(inp, label, params, alpha) / mini_batches
-        all_cost.append(cost)
+	"""
+	   Compute the backward propagation through the entire NN.
 
-        if i % 3000 == 0:
-            print("Cost at epoch {}: {}".format(i, round(cost, 4)))
+	   Inputs:
+	   - a_final = numpy array. Output of forward propagation.
+
+	   - labels  = numpy array.
+
+	   - caches = list of tuples.
+
+	   Outputs:
+	   - grads = dict containing the gradients of W and b.
+	"""
+
+	grads = {}
+	L = len(caches)
+
+	# First we load the last cache and delete it
+	last_lin_cache, last_act_cache = caches[-1]
+	_cache = caches[:-1]
+
+	# Then only for this layer apply softmax_back
+	dz_prev = softmax_back(a_final, labels)
+	da_previous, dw, db = backward_lin(dz_prev, last_lin_cache)
+	grads['dW{}'.format(L)] = dw
+	grads['db{}'.format(L)] = db
+	L = len(_cache)
+
+	# For the rest of the layers apply relu_back
+	for i in reversed(range(L)):
+		current_lin_cache, current_act_cache = _cache[i]
+		dz_prev = relu_back(da_previous, current_act_cache)
+		da_previous, dw, db = backward_lin(dz_prev, current_lin_cache)
+		grads['dW{}'.format(i + 1)] = dw
+		grads['db{}'.format(i + 1)] = db
+
+	return grads
 
 
-hidden_layers = [64, 32, 16]
+def update_parameters(params, grads, learning_rate):
+
+	"""
+	   Update W and b after back propagation.
+
+	   Inputs:
+	   - params        = dict containing W and b for each NN's layer.
+
+	   - grads         = dict containing dW and db for each NN's layer.
+
+	   - learning_rate = float. Typical value is 0.01
+
+	   No Outputs.
+	"""
+	L = len(params) // 2
+
+	for i in range(1, L + 1):
+		params['W{}'.format(i)] -= learning_rate * grads['dW{}'.format(i)].T
+		params['b{}'.format(i)] -= learning_rate * grads['db{}'.format(i)]
+
+
+def forw_back_upd(a0, labels, params, learning_rate):
+
+	"""
+	   Compute forward prop, cost, back prop and update W and b.
+
+	   Inputs:
+	   - a0            = numpy array. The input set of images.
+
+	   - labels        = numpy array.
+
+	   - params        = dict containing W and b.
+
+	   - learning_rate = float.
+
+	   Outputs:
+	   - cost = float.
+	"""
+
+	a_final, cache = forward_prop(a0, params)
+	cost = compute_cost(a_final, labels)
+	grads = back_prop(a_final, labels, cache)
+	update_parameters(params, grads, learning_rate)
+
+	return cost
+
+
+def compute_accuracy(a_final, labels, which_set):
+
+	"""
+	   Compute accuracy of the model.
+
+	   Inputs:
+	   - a_final = numpy array.
+
+	   - labels  = numpy array.
+
+	   Outputs:
+	   - accuracy = float.
+	"""
+
+	nx = a_final.shape[0]
+	m = a_final.shape[1]
+	count = 0
+
+	for x in range(m):
+		prevision = from_array_to_onehot(a_final[:, x].reshape(nx, 1))
+		label = labels[:, x].reshape(nx, 1)
+
+		if np.array_equal(prevision, label):
+			count += 1
+
+	accuracy = round(count / m * 100, 1)
+
+	print('Accuracy for {} set: {} %'.format(which_set, accuracy))
+
+
+def model_plain(input_set, input_lab, params, learning_rate,
+                iterations, which_set):
+
+	all_costs = []
+
+	for i in range(iterations + 1):
+		cost = forw_back_upd(input_set, input_lab, params, learning_rate)
+		all_costs.append(cost)
+
+		if i % 5000 == 0:
+			print("Cost at iteration {}: {}".format(i, round(cost, 4)))
+
+	a_final, _ = forward_prop(input_set, params)
+	compute_accuracy(a_final, input_lab, which_set)
+
+
+def model_mini_batch(input_set, input_lab, params, learning_rate,
+                     epochs, batch_size, which_set):
+
+	all_cost = []
+	mini_batches = input_set.shape[1] // batch_size + 1 if \
+		input_set.shape[1] % batch_size else input_set.shape[1] // batch_size
+
+	for i in range(epochs + 1):
+		cost = 0
+		for x in range(mini_batches):
+			inp = input_set[:, x * batch_size: (x + 1) * batch_size]
+			label = input_lab[:, x * batch_size: (x + 1) * batch_size]
+			cost += forw_back_upd(inp, label, params, learning_rate)
+		all_cost.append(cost / mini_batches)
+
+		if i % 5000 == 0:
+			print("Cost at epoch {}: {}".format(i, round(cost, 4)))
+
+	a_final, _ = forward_prop(input_set, params)
+	compute_accuracy(a_final, input_lab, which_set)
+
+
+def predict_image(image, params):
+	img = np.sum(image, axis=-1)
+	img = img.reshape(64, 1) / 255
+
+	a_final, _ = forward_prop(img, params)
+	res = from_array_to_onehot(a_final)
+
+	print('Picture is a {}!'.format(np.argmax(res)))
+
+
+hidden_layers = [64, 64, 32]
+
+# train_set, train_lab, dev_set, dev_lab, parameters = create_sets(hidden_layers)
+# model_plain(train_set, train_lab, parameters, 0.01, 15000, 'train')
+# model_plain(dev_set, dev_lab, parameters, 0.01, 1, 'dev')
+
+
 train_set, train_lab, dev_set, dev_lab, parameters = create_sets(hidden_layers)
-# train_set, train_lab, parameters = create_practice_sets()
+model_mini_batch(train_set, train_lab, parameters, 0.01, 20000, 512, 'train')
+# model_mini_batch(dev_set, dev_lab, parameters, 0.01, 1, 512, 'dev')
 
-import time
-start = time.time()
-accuracy = model_plain(train_set, train_lab, parameters, 0.01, 6000)
-# print('Accuracy for training set: {} %'.format(accuracy))
-print(time.time() - start)
-train_set, train_lab, dev_set, dev_lab, parameters = create_sets(hidden_layers)
-start = time.time()
-model_mini_batch(train_set, train_lab, parameters, 0.01, 6000, 512)
-print(time.time() - start)
+# im = imread('/Users/andrea/Desktop/prova4.png')
+# predict_image(im, parameters)
