@@ -40,10 +40,6 @@ def create_sets(layers):
 	labels = digits.target
 	images, labels = shuffle(images, labels, random_state=0)
 
-	# im = imread('/Users/andrea/Desktop/prova5.png')
-	# img = np.sum(im, axis=-1)
-	# img = img.reshape(64, 1) / 255
-
 	# Number of samples in training_set. Rest of the samples will be assigned
 	# to devel_set
 	m = 1000
@@ -137,7 +133,7 @@ def initialize_params_xavier(layers):
 	"""
 
 	params = {}
-	np.random.seed(1)
+	# np.random.seed(1)
 
 	for i in range(1, len(layers)):
 		xavier = np.sqrt(1 / layers[i - 1])
@@ -535,7 +531,8 @@ def model_mini_batch(input_set, input_lab, params, learning_rate,
 			inp = input_set[:, x * batch_size: (x + 1) * batch_size]
 			label = input_lab[:, x * batch_size: (x + 1) * batch_size]
 			cost += forw_back_upd(inp, label, params, learning_rate)
-		all_cost.append(cost / mini_batches)
+		cost /= mini_batches
+		all_cost.append(cost)
 
 		if i % 5000 == 0:
 			print("Cost at epoch {}: {}".format(i, round(cost, 4)))
@@ -554,15 +551,15 @@ def predict_image(image, params):
 	print('Picture is a {}!'.format(np.argmax(res)))
 
 
-hidden_layers = [64, 64, 32]
+hidden_layers = [64, 32]
 
 # train_set, train_lab, dev_set, dev_lab, parameters = create_sets(hidden_layers)
-# model_plain(train_set, train_lab, parameters, 0.01, 15000, 'train')
+# model_plain(train_set, train_lab, parameters, 0.01, 10000, 'train')
 # model_plain(dev_set, dev_lab, parameters, 0.01, 1, 'dev')
 
 
 train_set, train_lab, dev_set, dev_lab, parameters = create_sets(hidden_layers)
-model_mini_batch(train_set, train_lab, parameters, 0.01, 20000, 512, 'train')
+model_mini_batch(train_set, train_lab, parameters, 0.01, 10000, 256, 'train')
 # model_mini_batch(dev_set, dev_lab, parameters, 0.01, 1, 512, 'dev')
 
 # im = imread('/Users/andrea/Desktop/prova4.png')
