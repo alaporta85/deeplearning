@@ -1,19 +1,17 @@
 import numpy as np
 from sklearn.datasets import load_digits
 from sklearn.utils import shuffle
-from matplotlib.image import imread
 import matplotlib.pyplot as plt
 
 
-def create_sets(layers):
+def create_sets(m):
 
 	"""
 	   Separate training and dev sets together with their labels, normalize
 	   them and initialize parameters according to their shape.
 
 	   Inputs:
-	   - layers = list containing the size of each hidden layer (input and
-				  output layers excluded). Ex: [16, 32].
+	   - m = number of samples used for training.
 
 	   Outputs:
 	   - training_set = numpy array where each column represents an image. If
@@ -29,9 +27,6 @@ def create_sets(layers):
 	   - devel_set    = same as training_set. m can be different here.
 
 	   - devel_lab    = same as training_lab. m can be different here.
-
-	   - params       = dict of numpy arrays representing weights (W) and
-						biases (b) for each layer.
 	"""
 
 	# Separate images and labels and shuffle them
@@ -40,31 +35,23 @@ def create_sets(layers):
 	labels = digits.target
 	images, labels = shuffle(images, labels, random_state=0)
 
-	# Number of samples in training_set. Rest of the samples will be assigned
-	# to devel_set
-	m = 1000
-	training_set = images[:m]  # Shape: (m, nx, ny)
+	# Assign the first m samples to training_set and the rest to devel_set
+	training_set = images[:m]                        # Shape: (m, nx, ny)
 	training_lab = from_value_to_onehot(labels[:m])  # Shape: (m, 10)
-	devel_set = images[m:]  # Shape: (all - m, nx, ny)
-	devel_lab = from_value_to_onehot(labels[m:])  # Shape: (all - m, 10)
+	devel_set = images[m:]                           # Shape: (all - m, nx, ny)
+	devel_lab = from_value_to_onehot(labels[m:])     # Shape: (all - m, 10)
 
 	# Reshape and normalize sets
 	training_set = training_set.reshape(
-			training_set.shape[0], -1).T / 255  # Shape: (nx * ny, m)
+			training_set.shape[0], -1).T / 255      # Shape: (nx * ny, m)
 	training_lab = training_lab.reshape(
-			training_lab.shape[0], -1).T  # Shape: (10, m)
+			training_lab.shape[0], -1).T            # Shape: (10, m)
 	devel_set = devel_set.reshape(
-			devel_set.shape[0], -1).T / 255  # Shape: (nx * ny, all - m)
+			devel_set.shape[0], -1).T / 255         # Shape: (nx * ny, all - m)
 	devel_lab = devel_lab.reshape(
-			devel_lab.shape[0], -1).T  # Shape: (10, all - m)
+			devel_lab.shape[0], -1).T               # Shape: (10, all - m)
 
-	# Add input and output layers' sizes to the input list "layers"
-	layers = [training_set.shape[0]] + layers + [training_lab.shape[0]]
-
-	# Initialize dict with parameters
-	params = initialize_params_xavier(layers)
-
-	return training_set, training_lab, devel_set, devel_lab, params
+	return training_set, training_lab, devel_set, devel_lab
 
 
 def from_value_to_onehot(some_array):
@@ -121,24 +108,42 @@ def from_array_to_onehot(some_array):
 	return oh
 
 
-def initialize_params_xavier(layers):
+def initialize_params(training_set, training_lab, layers,
+                      initialization='xavier', seed=True):
 
 	"""
 	   Inputs:
-	   - layers = list containing the size of each hidden layer (input and
-				  output layers excluded). Ex: [16, 32].
+	   - training_set   = numpy array of shape (nx * ny, m).
+
+	   - training_lab   = numpy array of shape (n_output, m).
+
+	   - layers         = list containing the size of each hidden layer (input
+	                      and output layers excluded). Ex: [16, 32].
+	   - initialization = float or string.
+
+	   - seed           = bool. If True, seed is used in random initialization.
 
 	   Outputs:
-	   - params = dict with W and b Xavier-initialized for each layer.
+	   - params = dict of numpy arrays representing weights (W) and biases (b)
+	              for each layer.
 	"""
 
+	if seed:
+		np.random.seed(1)
+
 	params = {}
-	# np.random.seed(1)
+
+	# Add input and output layers' sizes to the input list "layers"
+	layers = [training_set.shape[0]] + layers + [training_lab.shape[0]]
 
 	for i in range(1, len(layers)):
-		xavier = np.sqrt(1 / layers[i - 1])
+		if initialization == 'xavier':
+			factor = np.sqrt(1 / layers[i - 1])
+		else:
+			factor = initialization
+
 		params['W' + str(i)] = np.random.randn(layers[i - 1],
-		                                       layers[i]) * xavier
+		                                       layers[i]) * factor
 		params['b' + str(i)] = np.zeros((layers[i], 1))
 
 	return params
@@ -503,7 +508,7 @@ def compute_accuracy(a_final, labels, which_set):
 
 
 def model_plain(input_set, input_lab, params, learning_rate,
-                iterations, which_set):
+                iterations, plot_cost=False):
 
 	all_costs = []
 
@@ -515,13 +520,17 @@ def model_plain(input_set, input_lab, params, learning_rate,
 			print("Cost at iteration {}: {}".format(i, round(cost, 4)))
 
 	a_final, _ = forward_prop(input_set, params)
-	compute_accuracy(a_final, input_lab, which_set)
+	compute_accuracy(a_final, input_lab, 'training')
+
+	if plot_cost:
+		fig = plt.plot(all_costs)
+		plt.show()
 
 
 def model_mini_batch(input_set, input_lab, params, learning_rate,
-                     epochs, batch_size, which_set):
+                     epochs, batch_size, plot_cost=False):
 
-	all_cost = []
+	all_costs = []
 	mini_batches = input_set.shape[1] // batch_size + 1 if \
 		input_set.shape[1] % batch_size else input_set.shape[1] // batch_size
 
@@ -532,35 +541,33 @@ def model_mini_batch(input_set, input_lab, params, learning_rate,
 			label = input_lab[:, x * batch_size: (x + 1) * batch_size]
 			cost += forw_back_upd(inp, label, params, learning_rate)
 		cost /= mini_batches
-		all_cost.append(cost)
+		all_costs.append(cost)
 
-		if i % 5000 == 0:
+		if i % 2000 == 0:
 			print("Cost at epoch {}: {}".format(i, round(cost, 4)))
 
 	a_final, _ = forward_prop(input_set, params)
-	compute_accuracy(a_final, input_lab, which_set)
+	compute_accuracy(a_final, input_lab, 'training')
+
+	if plot_cost:
+		fig = plt.plot(all_costs)
+		plt.show()
 
 
-def predict_image(image, params):
-	img = np.sum(image, axis=-1)
-	img = img.reshape(64, 1) / 255
-
-	a_final, _ = forward_prop(img, params)
-	res = from_array_to_onehot(a_final)
-
-	print('Picture is a {}!'.format(np.argmax(res)))
+def test_dev_set(devel_set, devel_lab, params):
+	a_final, _ = forward_prop(devel_set, params)
+	compute_accuracy(a_final, devel_lab, 'dev')
 
 
-hidden_layers = [64, 32]
+hidden_layers = [16, 16, 16, 16]
+train_set, train_lab, dev_set, dev_lab = create_sets(m=1500)
+parameters = initialize_params(train_set, train_lab, hidden_layers,
+                               initialization='xavier', seed=False)
 
-# train_set, train_lab, dev_set, dev_lab, parameters = create_sets(hidden_layers)
-# model_plain(train_set, train_lab, parameters, 0.01, 10000, 'train')
-# model_plain(dev_set, dev_lab, parameters, 0.01, 1, 'dev')
+# model_plain(train_set, train_lab, parameters, learning_rate=0.01,
+#             iterations=1000, plot_cost=False)
 
 
-train_set, train_lab, dev_set, dev_lab, parameters = create_sets(hidden_layers)
-model_mini_batch(train_set, train_lab, parameters, 0.01, 10000, 256, 'train')
-# model_mini_batch(dev_set, dev_lab, parameters, 0.01, 1, 512, 'dev')
-
-# im = imread('/Users/andrea/Desktop/prova4.png')
-# predict_image(im, parameters)
+model_mini_batch(train_set, train_lab, parameters, learning_rate=0.01,
+                 epochs=20000, batch_size=256, plot_cost=False)
+# test_dev_set(dev_set, dev_lab, parameters)
