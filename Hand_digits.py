@@ -1,8 +1,9 @@
 import numpy as np
 from mlxtend.data import loadlocal_mnist
-import matplotlib as mpl
-mpl.use('TkAgg')
+# import matplotlib as mpl
+# mpl.use('TkAgg')
 import matplotlib.pyplot as plt
+import time
 
 
 def create_sets(m):
@@ -142,7 +143,8 @@ def initialize_params(training_set, training_lab, layers,
 
 		params['W' + str(i)] = np.random.randn(layers[i - 1],
 		                                       layers[i]) * factor
-		params['b' + str(i)] = np.zeros((layers[i], 1))
+		# params['b' + str(i)] = np.zeros((layers[i], 1))
+		params['b' + str(i)] = np.zeros((layers[i]))
 
 	return params
 
@@ -589,7 +591,7 @@ def forw_back_upd(a0, labels, params, learning_rate,
 	return cost
 
 
-def compute_accuracy(a_final, labels, which_set, print_accuracy):
+def compute_accuracy(a_final, labels, which_set):
 
 	"""
 	   Compute accuracy of the model.
@@ -619,8 +621,7 @@ def compute_accuracy(a_final, labels, which_set, print_accuracy):
 
 	accuracy = round(count / m * 100, 1)
 
-	if print_accuracy:
-		print('Accuracy for {} set: {} %'.format(which_set, accuracy))
+	print('Accuracy for {} set: {} %'.format(which_set, accuracy))
 
 
 def model_plain(input_set, input_lab, params, learning_rate,
@@ -677,7 +678,8 @@ def model_plain(input_set, input_lab, params, learning_rate,
 				optimizer, round(cost, 4)))
 
 	a_final, _ = forward_prop(input_set, params)
-	compute_accuracy(a_final, input_lab, 'training', print_accuracy)
+	if print_accuracy:
+		compute_accuracy(a_final, input_lab, 'training')
 
 	if plot_cost:
 		plt.plot(all_costs, label='Plain, {}'.format(optimizer))
@@ -786,18 +788,22 @@ def test_dev_set(devel_set, devel_lab, params):
 	compute_accuracy(a_final, devel_lab, 'dev', True)
 
 
-# hidden_layers = [32, 32, 32]
-# train_set, train_lab, dev_set, dev_lab = create_sets(m=60000)
-# parameters = initialize_params(train_set, train_lab, hidden_layers,
-#                                initialization='xavier', seed=True)
+hidden_layers = [32, 32, 32]
+train_set, train_lab, dev_set, dev_lab = create_sets(m=60000)
+parameters = initialize_params(train_set, train_lab, hidden_layers,
+                               initialization='xavier', seed=True)
 
-# model_plain(train_set, train_lab, parameters, learning_rate=0.01,
-#             iterations=2, plot_cost=False)
+start = time.time()
+# all_cost = model_plain(train_set, train_lab, parameters, learning_rate=0.0005,
+#                        learning_rate_decay=0, iterations=1, beta1=0.9,
+#                        beta2=0.999, epsilon=1e-8, optimizer='ADAM',
+#                        print_every=1, plot_cost=False, print_accuracy=False)
+# print('My code took {} s.'.format(round(time.time() - start)))
 
 
 # cost_batches_GD, cost_epochs_GD = model_mini_batch(
-# 		train_set, train_lab, parameters, learning_rate=0.00001,
-# 		learning_rate_decay=0.005, epochs=1, batch_size=1024,
+# 		train_set, train_lab, parameters, learning_rate=0.001,
+# 		learning_rate_decay=0, epochs=1, batch_size=1024,
 # 		beta1=0.9, beta2=0.999, epsilon=1e-8, optimizer='RMS',
 # 		print_every='last', plot_cost=False, print_accuracy=False)
 # test_dev_set(dev_set, dev_lab, parameters)
